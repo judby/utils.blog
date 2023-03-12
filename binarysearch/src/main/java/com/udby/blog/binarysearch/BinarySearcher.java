@@ -35,6 +35,10 @@ public record BinarySearcher<T>(List<T> elements) {
      * Note that this guarantees that the return value will be >= 0 if and only if the key is found.
      */
     public <K> int binarySearch(final K key, final BiComparator<T, K> biComparator) {
+        return binarySearch(elements, key, biComparator);
+    }
+
+    public static <T, K> int binarySearch(final List<T> elements, final K key, final BiComparator<T, K> biComparator) {
         var low = 0;
         var high = elements.size() - 1;
 

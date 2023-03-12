@@ -1,9 +1,6 @@
 package com.udby.blog.binarysearch;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * A BinarySearcher able to do binary searches in list of elements of type T.
@@ -36,6 +33,11 @@ public record BinarySearcher<T>(List<T> elements) {
      */
     public <K> int binarySearch(final K key, final BiComparator<T, K> biComparator) {
         return binarySearch(elements, key, biComparator);
+    }
+
+    public <K> Optional<T> find(final K key, final BiComparator<T, K> biComparator) {
+        final var index = binarySearch(elements, key, biComparator);
+        return index < 0 ? Optional.empty() : Optional.of(elements.get(index));
     }
 
     public static <T, K> int binarySearch(final List<T> elements, final K key, final BiComparator<T, K> biComparator) {

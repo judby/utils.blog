@@ -1,6 +1,7 @@
 package com.udby.blog.binarysearch;
 
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -41,5 +42,19 @@ class BinarySearcherRangeSimpleTest {
         final var actualIndex = rangeBinarySearcher.binarySearch(input, rangeLongComparator);
 
         assertThat(actualIndex).isEqualTo(expectedIndex);
+    }
+
+    @Test
+    void find_elementFound_returnsOptionalWithElement() {
+        final var range = rangeBinarySearcher.find(15L, new RangeLongComparator());
+
+        assertThat(range).isNotEmpty().get().extracting("id").isEqualTo("[10,20)");
+    }
+
+    @Test
+    void find_elementNotFound_returnsEmptyOptional() {
+        final var range = rangeBinarySearcher.find(40L, new RangeLongComparator());
+
+        assertThat(range).isEmpty();
     }
 }

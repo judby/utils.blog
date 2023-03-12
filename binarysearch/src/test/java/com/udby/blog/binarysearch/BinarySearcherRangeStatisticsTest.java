@@ -17,7 +17,7 @@ class BinarySearcherRangeStatisticsTest {
 
     @Test
     void test() {
-        final var comparator = new CountInvocationsBiComparator<>(new RangeLongComparator());
+        final var comparator = CountInvocationsBiComparator.from(new RangeLongComparator());
 
         final var index = binarySearcher.binarySearch(1L, comparator);
 

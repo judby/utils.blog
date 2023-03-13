@@ -3,7 +3,6 @@ package com.udby.blog.mutable.simple;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.*;
 
 class MutableTest {
 
@@ -15,6 +14,16 @@ class MutableTest {
 
         assertThat(changed).isTrue();
         assertThat(mutable.get()).isEqualTo("A");
+    }
+
+    @Test
+    void setIfNull_valueIsNullSetToNull_returnsFalse() {
+        final var mutable = new Mutable<String>();
+
+        final var changed = mutable.setIfNull(null);
+
+        assertThat(changed).isFalse();
+        assertThat(mutable.get()).isNull();
     }
 
     @Test

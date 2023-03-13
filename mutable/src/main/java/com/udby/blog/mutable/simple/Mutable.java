@@ -20,7 +20,7 @@ public final class Mutable<T> implements Supplier<T>, Consumer<T> {
     public boolean setIfNull(T value) {
         if (isNull()) {
             set(value);
-            return true;
+            return value != null;
         }
         return false;
     }

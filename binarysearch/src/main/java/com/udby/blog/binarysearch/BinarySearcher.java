@@ -16,8 +16,7 @@ public record BinarySearcher<T>(List<T> elements) {
         final var list = new ArrayList<T>(elements);
         // Sort it according to natural ordering
         list.sort(null);
-        // Make it immutable
-        return new BinarySearcher<>(Collections.unmodifiableList(list));
+        return new BinarySearcher<>(list);
     }
 
     /**
@@ -58,5 +57,11 @@ public record BinarySearcher<T>(List<T> elements) {
             }
         }
         return -(low + 1);  // key not found
+    }
+
+    @Override
+    public List<T> elements() {
+        // Immutable - list is owned by BinarySearcher
+        return Collections.unmodifiableList(elements);
     }
 }

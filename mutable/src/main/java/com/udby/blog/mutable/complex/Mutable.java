@@ -90,6 +90,13 @@ public final class Mutable<T> implements Supplier<T>, Consumer<T> {
         }
     }
 
+    public T computeIfNull(Supplier<T> supplier) {
+        if (isNull()) {
+            set(supplier.get());
+        }
+        return this.value;
+    }
+
     @Override
     public T get() {
         return value;

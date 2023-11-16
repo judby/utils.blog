@@ -46,7 +46,7 @@ class TimingTest {
     }
 
     @Test
-    void timedOperation_success() throws Exception {
+    void timedOperation_success() {
         // Given
         final var T1 = 100L;
         final var DIFF = 20L;

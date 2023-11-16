@@ -29,7 +29,7 @@ public record Mutable<T>(T[] value) implements Supplier<T>, Consumer<T> {
     }
 
     private static <T> T[] arrayWithValue(T value) {
-        T[] array = (T[]) new Object[1];
+        @SuppressWarnings("unchecked") T[] array = (T[]) new Object[1];
         array[0] = value;
         return array;
     }

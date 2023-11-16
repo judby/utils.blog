@@ -3,7 +3,6 @@ package com.udby.blog.records.util;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-import java.lang.reflect.RecordComponent;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -33,8 +32,9 @@ public class RecordMapper {
         for (var i = 0; i < recordComponents.length; i++) {
             final var value = fields.get(recordComponents[i].getName());
             final var type = ctorTypes[i] = recordComponents[i].getType();
-            if (type.isRecord() && value instanceof Map map) {
-                ctorParams[i] = map((Class<? extends Record>) type, (Map<String, Object>) map);
+            if (type.isRecord() && value instanceof Map<?, ?> map) {
+                @SuppressWarnings("unchecked") final Object v = map((Class<? extends Record>) type, (Map<String, Object>) map);
+                ctorParams[i] = v;
             } else if (type.isPrimitive() && value == null) {
                 ctorParams[i] = defaultPrimitiveValue(type);
             } else {
@@ -48,9 +48,9 @@ public class RecordMapper {
 
     private static Object defaultPrimitiveValue(Class<?> type) {
         if (type == byte.class) {
-            return (byte)0;
+            return (byte) 0;
         } else if (type == short.class) {
-            return (short)0;
+            return (short) 0;
         } else if (type == char.class) {
             return '\u0000';
         } else if (type == int.class) {

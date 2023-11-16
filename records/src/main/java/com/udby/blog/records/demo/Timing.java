@@ -31,14 +31,15 @@ public record Timing(InstantSource timeSource, long started) {
         return timeSource.millis() - startMs;
     }
 
-    public <T> T timedOperation(Callable<T> operation, BiConsumer<Long, Exception> timingConsumer) throws Exception {
+    public <T, E extends Throwable> T timedOperation(Callable<T> operation, BiConsumer<Long, Exception> timingConsumer) throws E {
         final var startMs = timeSource.millis();
         final var caught = new AtomicReference<Exception>();
         try {
             return operation.call();
         } catch (Exception e) {
             caught.set(e);
-            throw e;
+            @SuppressWarnings("unchecked") final E toThrow = (E) e;
+            throw toThrow;
         } finally {
             timingConsumer.accept(elapsedMs(startMs), caught.get());
         }

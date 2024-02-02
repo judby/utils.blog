@@ -5,6 +5,29 @@ import lombok.NoArgsConstructor;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class PrimitiveDefaults {
+    public static Class<?> boxedType(Class<?> type) {
+        if (type == boolean.class) {
+            return Boolean.class;
+        } else if (type == byte.class) {
+            return Byte.class;
+        } else if (type == char.class) {
+            return Character.class;
+        } else if (type == double.class) {
+            return Double.class;
+        } else if (type == float.class) {
+            return Float.class;
+        } else if (type == int.class) {
+            return Integer.class;
+        } else if (type == long.class) {
+            return Long.class;
+        } else if (type == short.class) {
+            return Short.class;
+        } else if (type == void.class) {
+            return Void.class;
+        }
+        throw new IllegalArgumentException("type %s is not a known primitive: %s".formatted(type, type.isPrimitive()));
+    }
+
     public static <T> T defaultValue(Class<T> type) {
         final Object value;
         if (type == byte.class) {

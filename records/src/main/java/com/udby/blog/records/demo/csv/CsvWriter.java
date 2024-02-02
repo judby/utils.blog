@@ -3,13 +3,6 @@ package com.udby.blog.records.demo.csv;
 import com.udby.blog.records.util.ReflectionUtils;
 
 import java.io.BufferedWriter;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.lang.annotation.Documented;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.lang.reflect.RecordComponent;
 import java.time.LocalDate;
 import java.util.Locale;
@@ -20,13 +13,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class CsvWriter<T extends Record> implements Function<T, String> {
-    public static final String EUROPEAN_DELIMITER = ";";
     private final String delimiter;
     private final String emptyLine;
     private final boolean europeanNumerics;
     private final String header;
     private final RecordComponent[] recordComponents;
-    private final Class<T> recordType;
 
     private static final Pattern ESCAPE_STRING = Pattern.compile("\"");
     private static final Pattern UPPER_CASE_UNDERSCORE = Pattern.compile("([a-z0-9])([A-Z]+)");
@@ -38,26 +29,21 @@ public class CsvWriter<T extends Record> implements Function<T, String> {
         this.delimiter = delimiter;
         this.europeanNumerics = europeanNumerics;
         this.header = header;
-        this.recordType = recordType;
+
         this.recordComponents = recordType.getRecordComponents();
-        this.emptyLine = delimiter.repeat((int) columnsFor(recordComponents).count() - 1);
+        this.emptyLine = delimiter.repeat(CsvHelper.columnCount(recordComponents) - 1);
     }
 
     public CsvWriter(Class<T> recordType) {
-        this(recordType, EUROPEAN_DELIMITER);
+        this(recordType, CsvHelper.EUROPEAN_DELIMITER);
     }
 
     public CsvWriter(Class<T> recordType, String delimiter) {
-        this(delimiter, EUROPEAN_DELIMITER.equals(delimiter), headerFromRecord(recordType, delimiter), recordType);
-    }
-
-    private static Stream<RecordComponent> columnsFor(RecordComponent[] recordComponents) {
-        return Stream.of(recordComponents)
-                .filter(component -> component.getAnnotation(Column.class) == null || component.getAnnotation(Column.class).include());
+        this(delimiter, CsvHelper.EUROPEAN_DELIMITER.equals(delimiter), headerFromRecord(recordType, delimiter), recordType);
     }
 
     private static <T extends Record> String headerFromRecord(Class<T> recordType, String delimiter) {
-        return columnsFor(recordType.getRecordComponents())
+        return CsvHelper.columnsFor(recordType.getRecordComponents())
                 .map(component -> {
                     final var column = component.getAnnotation(Column.class);
                     if (column != null && !Column.DEFAULT_NAME.equals(column.value())) {
@@ -79,7 +65,7 @@ public class CsvWriter<T extends Record> implements Function<T, String> {
         if (record == null) {
             return emptyLine;
         } else {
-            return columnsFor(recordComponents)
+            return CsvHelper.columnsFor(recordComponents)
                     .map(recordComponent -> valueOfField(recordComponent, record))
                     .map(this::map)
                     .collect(Collectors.joining(delimiter));
@@ -94,26 +80,25 @@ public class CsvWriter<T extends Record> implements Function<T, String> {
         if (applyHeader) {
             writeLine(writer, header());
         }
-        recordStream.map(this::apply)
+        recordStream.map(this)
                 .forEach(line -> writeLine(writer, line));
     }
 
     private void writeLine(BufferedWriter writer, String line) {
-        try {
+        CsvHelper.handleIOException(() -> {
             writer.write(line);
             writer.newLine();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        });
     }
 
-    private <T extends Record> Object valueOfField(RecordComponent recordComponent, T record) {
-        return ReflectionUtils.invoke(() -> recordComponent.getAccessor().invoke(record));
+    private <E> E valueOfField(RecordComponent recordComponent, T record) {
+        @SuppressWarnings("unchecked") final var value = (E) ReflectionUtils.invoke(() -> recordComponent.getAccessor().invoke(record));
+        return value;
     }
 
     private String map(Object value) {
         return switch (value) {
-            case Boolean bool -> bool.booleanValue() ? "TRUE" : "FALSE";
+            case Boolean bool -> bool ? "TRUE" : "FALSE";
             case Enum<?> enm -> enm.name();
             case LocalDate localDate -> localDate.toString();
             case null -> "";
@@ -124,16 +109,5 @@ public class CsvWriter<T extends Record> implements Function<T, String> {
 
     private String escaped(String input) {
         return "\"%s\"".formatted(ESCAPE_STRING.matcher(input).replaceAll("\\\\"));
-    }
-
-    @Target({ElementType.RECORD_COMPONENT})
-    @Retention(RetentionPolicy.RUNTIME)
-    @Documented
-    public @interface Column {
-        boolean include() default true;
-
-        String value() default DEFAULT_NAME;
-
-        String DEFAULT_NAME = ":.the-default-column-name;,";
     }
 }

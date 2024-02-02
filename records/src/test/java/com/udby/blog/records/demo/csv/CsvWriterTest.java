@@ -1,6 +1,5 @@
 package com.udby.blog.records.demo.csv;
 
-import com.udby.blog.records.demo.csv.CsvWriter.Column;
 import org.junit.jupiter.api.Test;
 
 import java.io.BufferedWriter;
@@ -83,7 +82,7 @@ class CsvWriterTest {
 
     @Test
     void writeTo_throwingIOException_throwsUncheckedIOException() {
-        final var writer = new BufferedWriter(new StringWriter()){
+        final var writer = new BufferedWriter(new StringWriter()) {
             @Override
             public void write(String str) throws IOException {
                 throw new IOException("failed");
@@ -119,29 +118,5 @@ class CsvWriterTest {
         }
 
         assertThat(output.toString().lines()).containsExactly("\"Some value\";\"named\"");
-    }
-
-    record TestRecord(
-            String columnIncluded,
-            @Column(include = false) String columnNotIncluded,
-            @Column("NAMED") String namedColumn) {
-    }
-
-    record TestWithTypes(
-            int intValue,
-            long longValue,
-            double doubleValue,
-            BigDecimal bigDecimalValue,
-            BigInteger bigIntegerValue,
-            Void alwaysNull,
-            boolean booleanValue,
-            TestEnum enumValue,
-            String stringValue,
-            LocalDate dateValue) {
-    }
-
-    enum TestEnum {
-        VALUE_A,
-        VALUE_B
     }
 }

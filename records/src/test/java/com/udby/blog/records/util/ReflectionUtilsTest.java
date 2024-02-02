@@ -2,8 +2,6 @@ package com.udby.blog.records.util;
 
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.UndeclaredThrowableException;
-
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ReflectionUtilsTest {
@@ -13,13 +11,10 @@ class ReflectionUtilsTest {
         final var reflectiveOperationException = new ReflectiveOperationException();
 
         assertThatThrownBy(() ->
-                        ReflectionUtils.invoke(() -> {
-                            throw reflectiveOperationException;
-                        })
-                )
-                .isInstanceOf(IllegalStateException.class)
-                .cause()
-                .isSameAs(reflectiveOperationException);
+                ReflectionUtils.invoke(() -> {
+                    throw reflectiveOperationException;
+                })
+        ).isSameAs(reflectiveOperationException);
     }
 
     @Test
@@ -27,11 +22,10 @@ class ReflectionUtilsTest {
         final var error = new Error();
 
         assertThatThrownBy(() ->
-                        ReflectionUtils.invoke(() -> {
-                            throw error;
-                        })
-                )
-                .isSameAs(error);
+                ReflectionUtils.invoke(() -> {
+                    throw error;
+                })
+        ).isSameAs(error);
     }
 
     @Test
@@ -39,11 +33,10 @@ class ReflectionUtilsTest {
         final var runtimeException = new RuntimeException();
 
         assertThatThrownBy(() ->
-                        ReflectionUtils.invoke(() -> {
-                            throw runtimeException;
-                        })
-                )
-                .isSameAs(runtimeException);
+                ReflectionUtils.invoke(() -> {
+                    throw runtimeException;
+                })
+        ).isSameAs(runtimeException);
     }
 
     @Test
@@ -51,12 +44,9 @@ class ReflectionUtilsTest {
         final var throwable = new Throwable();
 
         assertThatThrownBy(() ->
-                        ReflectionUtils.invoke(() -> {
-                            throw throwable;
-                        })
-                )
-                .isInstanceOf(UndeclaredThrowableException.class)
-                .cause()
-                .isSameAs(throwable);
+                ReflectionUtils.invoke(() -> {
+                    throw throwable;
+                })
+        ).isSameAs(throwable);
     }
 }

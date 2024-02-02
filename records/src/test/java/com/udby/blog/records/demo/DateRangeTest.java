@@ -5,8 +5,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.LocalDate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -127,6 +125,28 @@ class DateRangeTest {
         final var dateRangeFeb2023 = new DateRange(LocalDate.parse("2023-02-01"), LocalDate.parse("2023-02-28"));
 
         assertThat(dateRangeFeb2023.compare(LocalDate.parse("2023-03-01"))).isNegative();
+    }
+
+    @Test
+    void between_null_throwsNPE() {
+        final var dateRange = DateRange.parse("2024-02");
+
+        assertThatThrownBy(() -> dateRange.between(null))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("date");
+    }
+
+    @ParameterizedTest
+    @CsvSource(textBlock = """
+            2024-01-31, false
+            2024-02-01, true
+            2024-02-29, true
+            2024-03-01, false
+            """)
+    void between_variants_worksAsExpected(LocalDate test, boolean expectedBetween) {
+        final var dateRange = DateRange.parse("2024-02");
+
+        assertThat(dateRange.between(test)).isEqualTo(expectedBetween);
     }
 
     @Test

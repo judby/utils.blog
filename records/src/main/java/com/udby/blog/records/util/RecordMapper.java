@@ -36,7 +36,7 @@ public class RecordMapper {
                 @SuppressWarnings("unchecked") final Object v = map((Class<? extends Record>) type, (Map<String, Object>) map);
                 ctorParams[i] = v;
             } else if (type.isPrimitive() && value == null) {
-                ctorParams[i] = defaultPrimitiveValue(type);
+                ctorParams[i] = PrimitiveDefaults.defaultValue(type);
             } else {
                 ctorParams[i] = value;
             }
@@ -44,27 +44,5 @@ public class RecordMapper {
         return ReflectionUtils.invoke(
                 () -> recordType.getDeclaredConstructor(ctorTypes)
                         .newInstance(ctorParams));
-    }
-
-    private static Object defaultPrimitiveValue(Class<?> type) {
-        if (type == byte.class) {
-            return (byte) 0;
-        } else if (type == short.class) {
-            return (short) 0;
-        } else if (type == char.class) {
-            return '\u0000';
-        } else if (type == int.class) {
-            return 0;
-        } else if (type == long.class) {
-            return 0L;
-        } else if (type == float.class) {
-            return 0f;
-        } else if (type == double.class) {
-            return 0d;
-        } else if (type == boolean.class) {
-            return false;
-        } else {
-            return null;
-        }
     }
 }

@@ -3,24 +3,19 @@ package com.udby.blog.records.util;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-import java.lang.reflect.UndeclaredThrowableException;
-
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReflectionUtils {
-    public static <T> T invoke(ReflectiveOperation<T> operation) {
+    public static <T, E extends Throwable> T invoke(ReflectiveOperation<T> operation) throws E {
         try {
             return operation.invoke();
-        } catch (ReflectiveOperationException e) {
-            throw new IllegalStateException(e);
-        } catch (Error | RuntimeException e) {
-            throw e;
         } catch (Throwable e) {
-            throw new UndeclaredThrowableException(e);
+            @SuppressWarnings("unchecked") final E toThrow = (E) e;
+            throw toThrow;
         }
     }
 
     @FunctionalInterface
-    interface ReflectiveOperation<T> {
+    public interface ReflectiveOperation<T> {
         T invoke() throws Throwable;
     }
 }

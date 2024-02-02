@@ -103,6 +103,16 @@ public record DateRange(LocalDate from, LocalDate to) implements Comparable<Date
         return sameDate() ? "[%s]".formatted(from) : "[%s,%s]".formatted(from, to);
     }
 
+    /**
+     * Between dates operating as the SQL variant, both ends inclusive
+     *
+     * @param test LocalDate to test
+     * @return true of the date is in the range [from,to]
+     */
+    public boolean between(LocalDate test) {
+        return compare(test) == 0;
+    }
+
     public Stream<LocalDate> dates() {
         long end = to.toEpochDay() + 1;
         long start = from.toEpochDay();

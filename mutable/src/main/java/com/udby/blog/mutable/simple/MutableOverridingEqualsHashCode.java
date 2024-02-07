@@ -52,10 +52,6 @@ public final class MutableOverridingEqualsHashCode<T> implements Supplier<T>, Co
      */
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
         return obj instanceof MutableOverridingEqualsHashCode<?> other
                 && Objects.equals(value, other.value);
     }

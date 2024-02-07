@@ -2,7 +2,11 @@ package com.udby.blog.mutable.demo;
 
 import com.udby.blog.mutable.simple.Mutable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 public record TopLevel(String id, List<Child> children, Set<Range> ranges, Mutable<Integer> someField) implements HierarchyElement {
     public TopLevel(String id) {
@@ -24,10 +28,6 @@ public record TopLevel(String id, List<Child> children, Set<Range> ranges, Mutab
      */
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
         return obj instanceof TopLevel other
                 && Objects.equals(id, other.id);
     }

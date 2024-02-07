@@ -2,7 +2,11 @@ package com.udby.blog.mutable.demo;
 
 import com.udby.blog.mutable.simple.Mutable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 public record Child(String id, HierarchyElement parent, int level, List<Child> children, Set<Range> ranges, Mutable<String> someField, Mutable<String> anotherField) implements HierarchyElement {
     public Child(String id, HierarchyElement parent, int level) {
@@ -14,10 +18,6 @@ public record Child(String id, HierarchyElement parent, int level, List<Child> c
      */
     @Override
     public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-
         return obj instanceof Child other
                 && Objects.equals(id, other.id)
                 && level == other.level;

@@ -2,8 +2,9 @@ package com.udby.blog.binarysearch;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
-public record CountInvocationsBiComparator<T, K>(BiComparator<T, K> comparator,
-                                                 AtomicInteger invocations) implements BiComparator<T, K> {
+public record CountInvocationsBiComparator<T, K>(
+        BiComparator<T, K> comparator,
+        AtomicInteger invocations) implements BiComparator<T, K> {
     public CountInvocationsBiComparator(BiComparator<T, K> comparator) {
         this(comparator, new AtomicInteger());
     }

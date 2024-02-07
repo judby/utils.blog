@@ -1,6 +1,10 @@
 package com.udby.blog.binarysearch;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 /**
  * A BinarySearcher able to do binary searches in list of elements of type T.

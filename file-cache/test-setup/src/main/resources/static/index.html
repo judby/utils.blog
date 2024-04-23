@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Home of FileCache Test-Setup</title>
+</head>
+<body>
+    <script src="js/jquery-3.7.1.min.js"></script>
+    <div id="container"></div>
+    <script>
+        $(document).ready(function() {
+            var container = $('#container');
+            for (var i = 0; i < 100; i++) {
+                var img = $('<img src="/api/images/numbers/' + i + '">');
+                img.appendTo(container);
+            }
+        });
+    </script>
+</body>
+</html>

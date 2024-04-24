@@ -8,7 +8,6 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <groupId>eu.bankopladerne.online.server</groupId>
     <artifactId>file-cache-impl</artifactId>
 
     <name>file-cache-impl</name>

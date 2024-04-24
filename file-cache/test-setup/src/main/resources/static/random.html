@@ -19,20 +19,17 @@ limitations under the License.
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Home of FileCache Test-Setup</title>
+    <title>FileCache Test-Setup - RANDOM images</title>
 </head>
 <body>
     <script src="js/jquery-3.7.1.min.js"></script>
     <div id="container"></div>
-    <p>
-        <a href="random.html">Random images...</a>
-    </p>
     <script>
         $(document).ready(function() {
-            // Add 100 images to the div#container
+            // Add 100 random images to the div#container
             var container = $('#container');
             for (var i = 0; i < 100; i++) {
-                var img = $('<img src="/api/images/numbers/' + i + '">');
+                var img = $('<img src="/api/images/numbers/' + Math.floor(Math.random() * 1000) + '">');
                 img.appendTo(container);
             }
         });

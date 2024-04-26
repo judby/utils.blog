@@ -39,7 +39,7 @@ sports [random numbers](http://localhost:8080/random.html).
 
 ### k6
 
-In the [k6 folder](k6) there is a simple setup simulating up to 140 virtual users to stress the implementation a bit.
+In the [k6 folder](k6) there is a simple [Grafana K6](https://grafana.com/docs/k6/latest/) setup simulating up to 140 virtual users to stress the implementation a bit.
 It requests random images where some will be cached and some will be generated to stress all parts of the implementation.
 
 ```

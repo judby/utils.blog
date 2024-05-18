@@ -52,7 +52,8 @@ public class CsvReader<T extends Record> implements Function<String, T> {
                 .map(RecordComponent::getType)
                 .toArray(Class[]::new);
         this.constructor = ReflectionUtils.invoke(() ->
-                LOOKUP.findConstructor(recordType, MethodType.methodType(void.class, ctorTypes)));
+                LOOKUP.findConstructor(recordType, MethodType.methodType(void.class, ctorTypes))
+                        .asSpreader(Object[].class, columnCount));
         this.converters = Stream.of(recordComponents)
                 .map(CsvReader::createConverter)
                 .toArray(MethodHandle[]::new);
@@ -123,7 +124,7 @@ public class CsvReader<T extends Record> implements Function<String, T> {
                         }
                     }
                 });
-        @SuppressWarnings("unchecked") final T t = (T) ReflectionUtils.invoke(() -> constructor.invokeWithArguments(ctorParams));
+        @SuppressWarnings("unchecked") final T t = (T) ReflectionUtils.invoke(() -> constructor.invoke(ctorParams));
         return t;
     }
 
@@ -156,7 +157,7 @@ public class CsvReader<T extends Record> implements Function<String, T> {
     public Stream<T> readFrom(BufferedReader reader, boolean skipHeader, boolean ignoreExceptions) {
         final var skippedHeader = new AtomicBoolean(!skipHeader);
         return process(reader.lines()
-                .filter(ignored -> skippedHeader.compareAndExchange(false, true)),
+                        .filter(ignored -> skippedHeader.compareAndExchange(false, true)),
                 ignoreExceptions);
     }
 

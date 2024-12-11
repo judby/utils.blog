@@ -29,8 +29,8 @@ import static java.nio.file.StandardOpenOption.READ;
  *         // process part in byteBuffer
  *     });
  *     // check exception status...
- *     if (largeFileSplitter.ioException() != null) {
- *         // handle IOException
+ *     if (largeFileSplitter.exception() != null) {
+ *         // handle Exception
  *     }
  * }
  * </pre>
@@ -49,7 +49,7 @@ public class LargeFileSplitter {
     private final long mappedSize;
     private final long smallPartMaxSize;
     private final Path file;
-    private final AtomicReference<IOException> ioException = new AtomicReference<>();
+    private final AtomicReference<Exception> exceptionCaught = new AtomicReference<>();
 
     /**
      * Create LargeFileSplitter given parameters:
@@ -107,7 +107,7 @@ public class LargeFileSplitter {
         int partStart = 0;
         try (final var channel = FileChannel.open(file, READ)) {
             long index = 0;
-            while (index < size) {
+            while (index < size && exceptionCaught.get() == null) {
                 final var length = length(size, index, mappedSize);
 
                 final var mappedByteBuffer = channel.map(FileChannel.MapMode.READ_ONLY, index, length);
@@ -115,21 +115,21 @@ public class LargeFileSplitter {
                 partStart += processFileParts(partStart, executorService, processor, mappedByteBuffer);
                 index += length;
             }
-        } catch (IOException e) {
-            ioException.compareAndSet(null, e);
+        } catch (Exception e) {
+            exceptionCaught.compareAndSet(null, e);
             executorService.shutdownNow();
-            throw new UncheckedIOException("Processing slices (part %d) of %s (shutting down execution)".formatted(partStart, file), e);
+            throw new IllegalStateException("Processing slices (part %d) of %s (shutting down execution)".formatted(partStart, file), e);
         }
         return partStart;
     }
 
     /**
-     * If processing is being terminated by an IOException returns the IOException
+     * If processing is being terminated by an Exception returns the Exception
      *
      * @return null if all good or the IOException terminating the processing
      */
-    public IOException ioException() {
-        return ioException.get();
+    public Exception exception() {
+        return exceptionCaught.get();
     }
 
     private int processFileParts(
@@ -146,7 +146,7 @@ public class LargeFileSplitter {
         // current part within all parts of this byte buffer...
         int parts = 0;
 
-        while (index < size) {
+        while (index < size && exceptionCaught.get() == null) {
             parts++;
 
             final var length = length(size, index, blockSize);
@@ -158,10 +158,10 @@ public class LargeFileSplitter {
             executorService.execute(() -> {
                 try {
                     processor.processPart(partNumber, partBuffer);
-                } catch (IOException e) {
-                    ioException.compareAndSet(null, e);
+                } catch (Exception e) {
+                    exceptionCaught.compareAndSet(null, e);
                     executorService.shutdownNow();
-                    throw new UncheckedIOException("Processing part %d of %s (shutting down execution)".formatted(partNumber, file), e);
+                    throw new IllegalStateException("Processing part %d of %s (shutting down execution)".formatted(partNumber, file), e);
                 }
             });
 

@@ -40,10 +40,14 @@ public class LargeFileSplitter {
     public static final long ONE_M = ONE_K * ONE_K;
     public static final long ONE_G = ONE_M * ONE_K;
     public static final long TWO_G = 2L * ONE_G;
+    public static final long FOUR_G = 4L * ONE_G;
 
+    public static final long SIZE_5M = 5 * ONE_M;
     public static final long SIZE_8M = 8 * ONE_M;
     public static final long SIZE_16M = 16 * ONE_M;
     public static final long SIZE_32M = 32 * ONE_M;
+    public static final long SIZE_64M = 64 * ONE_M;
+    public static final long SIZE_100M = 100 * ONE_M;
 
     private final long partSize;
     private final long mappedSize;

@@ -8,6 +8,7 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.time.Duration;
 import java.util.Collection;
+import java.util.Comparator;
 
 public class AmazonS3FacadeImpl implements AmazonS3Facade {
     private final S3Client s3Client;
@@ -60,16 +61,27 @@ public class AmazonS3FacadeImpl implements AmazonS3Facade {
                                         .uploadId(uploadId))
                         .signatureDuration(signatureDuration));
 
-        return presigned.url().toString();
+        return presigned.url()
+                .toString();
     }
 
     @Override
-    public void completeMultipartUpload(String bucket, String key, String uploadId, Collection<CompletedPart> parts) {
+    public void completeMultipartUpload(String bucket, String key, String uploadId, Collection<? extends UploadedPart> parts) {
+        // They must be sorted by partNumber...
+        final var sortedCompletedParts = parts.stream()
+                .sorted((Comparator.comparing(UploadedPart::partNumber)))
+                .map(part ->
+                        CompletedPart.builder()
+                                .eTag(part.eTag())
+                                .partNumber(part.partNumber())
+                                .build())
+                .toList();
+
         s3Client.completeMultipartUpload(request ->
                 request.bucket(bucket)
                         .key(key)
                         .multipartUpload(mp ->
-                                mp.parts(parts))
+                                mp.parts(sortedCompletedParts))
                         .uploadId(uploadId));
     }
 }

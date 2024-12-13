@@ -3,7 +3,6 @@ package com.udby.blog.largefilesplit.s3;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
-import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import java.time.Duration;
@@ -31,5 +30,11 @@ public interface AmazonS3Facade {
 
     String presignedUploadPartRequest(String bucket, String key, String uploadId, int partNumber, String contentMd5, final Duration signatureDuration);
 
-    void completeMultipartUpload(String bucket, String key, String uploadId, Collection<CompletedPart> parts);
+    void completeMultipartUpload(String bucket, String key, String uploadId, Collection<? extends UploadedPart> parts);
+
+    interface UploadedPart {
+        int partNumber();
+
+        String eTag();
+    }
 }

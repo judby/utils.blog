@@ -5,7 +5,6 @@ import com.udby.blog.largefilesplit.SimpleByteBufferBodyPublisher;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.core.internal.util.Mimetype;
 import software.amazon.awssdk.regions.Region;
-import software.amazon.awssdk.services.s3.model.CompletedPart;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -16,40 +15,39 @@ import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Comparator;
-import java.util.Queue;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static com.udby.blog.largefilesplit.LargeFileSplitter.SIZE_64M;
+
 public class S3UploadLargeFile {
     private static final Base64.Encoder BASE64_ENCODER = Base64.getEncoder();
-    private static final MessageDigest MD5;
 
-    static {
-        try {
-            MD5 = MessageDigest.getInstance("MD5");
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException(e);
-        }
-    }
-
-    private final Queue<MessageDigest> cachedMessageDigests = new ConcurrentLinkedQueue<>();
     private final AmazonS3Facade amazonS3Facade;
     private final int blockSize;
-    private final AtomicInteger completedParts = new AtomicInteger();
-    private final AtomicLong completedBytes = new AtomicLong();
     private final Semaphore maxParallelism;
 
+    private final MessageDigestHelper messageDigestHelper = MessageDigestHelper.MD5;
+
+    private final AtomicInteger completedParts = new AtomicInteger();
+    private final AtomicInteger startedParts = new AtomicInteger();
+    private final AtomicLong completedBytes = new AtomicLong();
+    private final AtomicBoolean changed = new AtomicBoolean(true);
+
     public S3UploadLargeFile() {
-        this(AmazonS3Facade.from(DefaultCredentialsProvider.create(), resolveRegion()), (int) LargeFileSplitter.SIZE_32M, 32);
+        this((int) LargeFileSplitter.SIZE_32M, 64);
+    }
+
+    public S3UploadLargeFile(int blockSize, int maxParallelism) {
+        this(AmazonS3Facade.from(DefaultCredentialsProvider.create(), resolveRegion()), blockSize, maxParallelism);
     }
 
     public S3UploadLargeFile(AmazonS3Facade amazonS3Facade, int blockSize, int maxParallelism) {
@@ -65,18 +63,26 @@ public class S3UploadLargeFile {
             System.out.println("2. name of S3 bucket/path");
             System.exit(1);
         }
+
         final var fileToUpload = Path.of(args[0])
                 .normalize()
                 .toAbsolutePath();
 
-        final var main = new S3UploadLargeFile();
+        final var main = new S3UploadLargeFile((int) SIZE_64M, 48);
 
-        main.uploadToS3(fileToUpload, args[1]);
+        try (final var x = Executors.newSingleThreadScheduledExecutor()) {
+            x.scheduleAtFixedRate(main::progressLog, 2_000L, 125L, TimeUnit.MILLISECONDS);
+            main.uploadToS3(fileToUpload, args[1]);
+        } finally {
+            main.changed.set(true);
+            main.progressLog();
+        }
+
     }
 
     public void uploadToS3(Path fileToUpload, String s3BucketPath) {
         if (!s3BucketPath.contains("/")) {
-            System.out.printf("S3 bucket/path must consist of bucket and path: %s%n", s3BucketPath);
+            System.out.printf("S3 bucket/path must contain initial '/' to separate S3 bucket and path: %s%n", s3BucketPath);
             return;
         }
 
@@ -112,11 +118,13 @@ public class S3UploadLargeFile {
                 .getMimetype(fileToUpload);
         System.out.printf("Uploading %s (%.3f MiB %s)%n...to S3 bucket '%s'%n...as '%s'%n", fileToUpload, (1.0 * size / LargeFileSplitter.ONE_M) + 0.0005, mimetype, bucket, destination);
 
+        final var t0 = System.nanoTime();
+
         final var uploadId = amazonS3Facade.prepareMultipartUpload(bucket, destination, mimetype);
         System.out.printf("Prepared multipart upload: %s%n", uploadId);
 
         final var largeFileSplitter = LargeFileSplitter.fromFile(fileToUpload, blockSize);
-        final var completedParts = new ArrayList<CompletedPart>((int) (size / blockSize));
+        final var completedParts = new ArrayList<UploadedPart>((int) (size / blockSize));
         final var lock = new ReentrantLock();
         boolean failed = true;
         try (final var httpClient = HttpClient.newHttpClient()) {
@@ -130,11 +138,16 @@ public class S3UploadLargeFile {
                 }
             }));
 
-            // They must be sorted by partNumber...
-            completedParts.sort(Comparator.comparing(CompletedPart::partNumber));
-            amazonS3Facade.completeMultipartUpload(bucket, destination, uploadId, completedParts);
-            failed = false;
-            System.out.println("Completed multipart upload");
+            if (largeFileSplitter.exception() == null) {
+                amazonS3Facade.completeMultipartUpload(bucket, destination, uploadId, completedParts);
+                System.out.println("Completed multipart upload");
+                failed = false;
+            } else {
+                System.out.printf("Spilt failed: %s%n", largeFileSplitter.exception());
+            }
+
+            final var timingSeconds = 1e-9 * (System.nanoTime() - t0);
+            System.out.printf("Timing: %.3fs %s/s%n", timingSeconds, format((long) ((size * 1000L) / (timingSeconds * 1000.0))));
         } finally {
             if (failed) {
                 amazonS3Facade.abortMultipartUpload(bucket, destination, uploadId);
@@ -143,16 +156,18 @@ public class S3UploadLargeFile {
         }
     }
 
-    private CompletedPart uploadPart(HttpClient httpClient, String bucket, String key, String uploadId, int partNumber, ByteBuffer byteBuffer) throws IOException {
+    private UploadedPart uploadPart(HttpClient httpClient, String bucket, String key, String uploadId, int partNumber, ByteBuffer byteBuffer) throws IOException {
         try {
             maxParallelism.acquire();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
+        startedParts.incrementAndGet();
+        changed.set(true);
         try {
             final var contentMd5 = md5(byteBuffer);
-            final var presignedPutUri = amazonS3Facade.presignedUploadPartRequest(bucket, key, uploadId, partNumber, contentMd5, Duration.ofHours(1L));
+            final var presignedPutUri = amazonS3Facade.presignedUploadPartRequest(bucket, key, uploadId, partNumber, contentMd5, Duration.ofMinutes(10L));
 
             final var byteBufferBodyPublisher = new SimpleByteBufferBodyPublisher(byteBuffer);
 
@@ -181,14 +196,39 @@ public class S3UploadLargeFile {
 
             completedParts.incrementAndGet();
             completedBytes.addAndGet(byteBuffer.capacity());
+            changed.set(true);
 
-            return CompletedPart.builder()
-                    .eTag(eTag)
-                    .partNumber(partNumber)
-                    .build();
+            return new UploadedPart(partNumber, eTag);
         } finally {
             maxParallelism.release();
         }
+    }
+
+    private void progressLog() {
+        if (changed.compareAndSet(true, false)) {
+            final var partsStarted = this.startedParts.get();
+            final var partsCompleted = this.completedParts.get();
+            final var bytesUploaded = this.completedBytes.get();
+            System.out.printf("Parts started: %d completed: %d bytes uploaded: %s%n", partsStarted, partsCompleted, format(bytesUploaded));
+        }
+    }
+
+    private static final String[] KIBS = {"", " kiB", " MiB", " GiB", " TiB"};
+
+    private static String format(long value) {
+        if (value == 0) {
+            return "0 (zero)";
+        }
+        int kibs = 0;
+        double tmp = value;
+        while (tmp > 1024) {
+            kibs++;
+            tmp = tmp / 1024.0;
+        }
+        if (kibs > 4) {
+            return Long.toString(value);
+        }
+        return "%.3f%s".formatted(tmp, KIBS[kibs]);
     }
 
     private static Region resolveRegion() {
@@ -207,8 +247,8 @@ public class S3UploadLargeFile {
     }
 
     private String md5(ByteBuffer byteBuffer) {
-        try (final var md5Holder = new MD5Holder()) {
-            final var messageDigest = md5Holder.md5;
+        try (final var md5Holder = messageDigestHelper.lease()) {
+            final var messageDigest = md5Holder.messageDigest();
             messageDigest.update(byteBuffer);
             return BASE64_ENCODER.encodeToString(messageDigest.digest());
         } finally {
@@ -216,22 +256,6 @@ public class S3UploadLargeFile {
         }
     }
 
-    private class MD5Holder implements AutoCloseable {
-        final MessageDigest md5;
-
-        MD5Holder() {
-            final var md5 = cachedMessageDigests.poll();
-            try {
-                this.md5 = md5 == null ? (MessageDigest) MD5.clone() : md5;
-            } catch (CloneNotSupportedException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        @Override
-        public void close() {
-            this.md5.reset();
-            cachedMessageDigests.offer(this.md5);
-        }
+    record UploadedPart(int partNumber, String eTag) implements AmazonS3Facade.UploadedPart {
     }
 }

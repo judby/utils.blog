@@ -15,13 +15,13 @@ public class SimpleByteBufferBodyPublisher implements HttpRequest.BodyPublisher 
 
     private boolean subscribed; // true after first subscribe
 
-    SimpleByteBufferBodyPublisher(ByteBuffer byteBuffer) {
+    public SimpleByteBufferBodyPublisher(ByteBuffer byteBuffer) {
         this.byteBuffer = Objects.requireNonNull(byteBuffer, "byteBuffer");
     }
 
     @Override
     public long contentLength() {
-        return byteBuffer.capacity();
+        return byteBuffer.remaining();
     }
 
     @Override
@@ -43,7 +43,7 @@ public class SimpleByteBufferBodyPublisher implements HttpRequest.BodyPublisher 
         }
 
         @Override
-        public synchronized void request(long n) {
+        public void request(long n) {
             if (!completed) {
                 completed = true;
                 if (n <= 0) {
@@ -56,7 +56,7 @@ public class SimpleByteBufferBodyPublisher implements HttpRequest.BodyPublisher 
         }
 
         @Override
-        public synchronized void cancel() {
+        public void cancel() {
             completed = true;
         }
     }

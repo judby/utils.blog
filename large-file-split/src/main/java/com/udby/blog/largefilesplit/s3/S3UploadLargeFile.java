@@ -116,13 +116,14 @@ public class S3UploadLargeFile {
                 .toString();
         final var mimetype = Mimetype.getInstance()
                 .getMimetype(fileToUpload);
+
         System.out.printf("Uploading %s (%.3f MiB %s)%n...to S3 bucket '%s'%n...as '%s'%n", fileToUpload, (1.0 * size / LargeFileSplitter.ONE_M) + 0.0005, mimetype, bucket, destination);
 
-        final var t0 = System.nanoTime();
 
         final var uploadId = amazonS3Facade.prepareMultipartUpload(bucket, destination, mimetype);
         System.out.printf("Prepared multipart upload: %s%n", uploadId);
 
+        final var t0 = System.nanoTime();
         final var largeFileSplitter = LargeFileSplitter.fromFile(fileToUpload, blockSize);
         final var completedParts = new ArrayList<UploadedPart>((int) (size / blockSize));
         final var lock = new ReentrantLock();

@@ -248,10 +248,9 @@ public class S3UploadLargeFile {
     }
 
     private String md5(ByteBuffer byteBuffer) {
-        try (final var md5Holder = messageDigestHelper.lease()) {
-            final var messageDigest = md5Holder.get();
-            messageDigest.update(byteBuffer);
-            return BASE64_ENCODER.encodeToString(messageDigest.digest());
+        try {
+            final byte[] bytes = messageDigestHelper.digest(byteBuffer);
+            return BASE64_ENCODER.encodeToString(bytes);
         } finally {
             byteBuffer.rewind();
         }

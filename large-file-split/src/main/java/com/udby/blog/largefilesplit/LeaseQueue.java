@@ -1,62 +1,119 @@
 package com.udby.blog.largefilesplit;
 
+import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+/**
+ * LeaseQueue caches a maximum number of instances of T.
+ * Implementation is meant for traditional object pooling where non-thread-safe instances
+ * are shared among different threads in a thread-safe manner.
+ * A reset concept is used to reset potentially stateful instances before returning them to the cache.
+ * Implementation is carefully designed not to use traditional JAVA synchronization methods to avoid
+ * pinning (JAVA-23) virtual threads.
+ *
+ * @param <T> Type of item to manage
+ */
 public class LeaseQueue<T> {
     private final Queue<T> leaseQueue;
     private final Supplier<T> newInstance;
     private final Consumer<T> resetInstance;
 
+    /**
+     * Create LeaseQueue with configured max capacity and the given creator and reset methods
+     *
+     * @param maxSize       Max number of instances of T to cache
+     * @param newInstance   Supplier of T when queue is empty
+     * @param resetInstance Consumer of T that resets instances of T when returning to the cache,
+     *                      null if reset functionality is not needed
+     */
     public LeaseQueue(int maxSize, Supplier<T> newInstance, Consumer<T> resetInstance) {
+        this.newInstance = Objects.requireNonNull(newInstance);
+        // ArrayBlockingQueue (JAVA-23) implementation does not use traditional synchronization
         this.leaseQueue = new ArrayBlockingQueue<>(maxSize);
-        this.newInstance = newInstance;
         this.resetInstance = resetInstance;
     }
 
-    public void offer(T value) {
+    public LeaseQueue(int maxSize, Supplier<T> newInstance) {
+        this(maxSize, newInstance, null);
+    }
+
+    /**
+     * Reset a non-null instance of T and return it to the queue
+     *
+     * @param value
+     */
+    public void resetAndOffer(T value) {
+        Objects.requireNonNull(value);
+        if (resetInstance != null) {
+            resetInstance.accept(value);
+        }
         leaseQueue.offer(value);
     }
 
+    /**
+     * Lease an instance of T, will not be queued until the lease is released(closed), to be used with
+     * try-with-resources
+     *
+     * @return a Lease with a reference to an unqueued instance of T
+     */
     public Lease lease() {
         return new Lease();
     }
 
-    public <R> R leaseAndDo(Function<T, R> action) {
-        try (final var lease = lease()) {
-            return action.apply(lease.get());
-        }
-    }
-
-    private T newInstanceIfQueueIsEmpty() {
+    /**
+     * Poll an instance of T from the queue or create a new is queue is empty.
+     *
+     * @return
+     */
+    public T pollOrCreate() {
         final T value = leaseQueue.poll();
         return value == null ? newInstance.get() : value;
     }
 
+    /**
+     * Obtain an instance of T (possibly queued), invoke the action on it, reset it, putting it back on the
+     * queue and return the result of the action.
+     *
+     * @param action
+     * @param <R>
+     * @return
+     */
+    public <R> R leaseAndDo(Function<T, R> action) {
+        final T value = pollOrCreate();
+        try {
+            return action.apply(value);
+        } finally {
+            resetAndOffer(value);
+        }
+    }
+
+    /**
+     * Lease holder. AutoCloseable to be used with try-with-resources; the lease is released when closed
+     */
     public class Lease implements AutoCloseable, Supplier<T> {
+        private final AtomicBoolean queued = new AtomicBoolean();
         private final T value;
-        private volatile boolean closed;
 
         private Lease() {
-            this.value = newInstanceIfQueueIsEmpty();
+            this.value = pollOrCreate();
         }
 
         @Override
         public void close() {
-            if (!closed) {
-                this.closed = true;
-                resetInstance.accept(this.value);
-                leaseQueue.offer(this.value);
+            if (queued.compareAndSet(false, true)) {
+                resetAndOffer(this.value);
             }
         }
 
         @Override
         public T get() {
-            if (closed) {
-                throw new IllegalStateException("Is closed");
+            if (queued.get()) {
+                throw new IllegalStateException("Is queued");
             }
             return value;
         }

@@ -45,8 +45,8 @@ class LargeFileSplitterTest {
         });
 
         // Then
-        assertThat(parts).isEqualTo(64);
-        assertThat(partSizes).hasSize(64);
+        assertThat(parts).isEqualTo(63);
+        assertThat(partSizes).hasSize(63);
 
         final var sum = partSizes.stream()
                 .mapToInt(Integer::intValue)

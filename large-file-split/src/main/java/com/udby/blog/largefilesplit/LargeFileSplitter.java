@@ -3,14 +3,15 @@ package com.udby.blog.largefilesplit;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.lang.foreign.Arena;
 import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.nio.file.StandardOpenOption.READ;
@@ -46,7 +47,6 @@ public class LargeFileSplitter {
     public static final long SIZE_32M = 32 * ONE_M;
 
     private final long partSize;
-    private final long mappedSize;
     private final long smallPartMaxSize;
     private final Path file;
     private final AtomicReference<Exception> exceptionCaught = new AtomicReference<>();
@@ -56,16 +56,17 @@ public class LargeFileSplitter {
      *
      * @param file             Path to file to split
      * @param partSize         Approx part size
-     * @param mappedSize       Size of each memory mapped part
      * @param smallPartMaxSize Max size of small parts to be included in last part (can make last part larger than partSize).
      *                         Set to zero if last parts can be small
      */
-    public LargeFileSplitter(Path file, long partSize, int mappedSize, long smallPartMaxSize) {
+    public LargeFileSplitter(Path file, long partSize, long smallPartMaxSize) {
         if (!Files.isReadable(Objects.requireNonNull(file, "file"))) {
             throw new IllegalArgumentException("File not readable: %s".formatted(file));
         }
+        if (TWO_G <= (partSize + smallPartMaxSize)) {
+            throw new IllegalArgumentException("(partSize + smallPartMaxSize) must be below 2G, %d %d %d".formatted(partSize, smallPartMaxSize, (partSize + smallPartMaxSize)));
+        }
         this.partSize = partSize;
-        this.mappedSize = mappedSize;
         this.file = file;
         this.smallPartMaxSize = smallPartMaxSize;
     }
@@ -78,8 +79,7 @@ public class LargeFileSplitter {
      * @return Instance with sane defaults
      */
     public static LargeFileSplitter fromFile(Path file, long partSize) {
-        final var mappedSize = integer(((TWO_G / partSize) - 1) * partSize, "2G - partSize");
-        return new LargeFileSplitter(file, partSize, mappedSize, ONE_M);
+        return new LargeFileSplitter(file, partSize, ONE_M);
     }
 
     /**
@@ -104,23 +104,44 @@ public class LargeFileSplitter {
     public int process(ExecutorService executorService, FilePartProcessor processor) {
         final var size = fileSize();
 
-        int partStart = 0;
-        try (final var channel = FileChannel.open(file, READ)) {
-            long index = 0;
-            while (index < size && exceptionCaught.get() == null) {
-                final var length = length(size, index, mappedSize);
+        // current part within all parts of this byte buffer...
+        int parts = 0;
+        try (final var channel = FileChannel.open(file, READ); final var arena = Arena.ofShared()) {
+            final var memorySegment = channel.map(FileChannel.MapMode.READ_ONLY, 0L, size, arena);
 
-                final var mappedByteBuffer = channel.map(FileChannel.MapMode.READ_ONLY, index, length);
+            // running offset into off-heap memory segment
+            long offset = 0L;
+            while (offset < size) {
+                parts++;
 
-                partStart += processFileParts(partStart, executorService, processor, mappedByteBuffer);
-                index += length;
+                final var length = length(size, offset, partSize);
+                final var slice = memorySegment.asSlice(offset, length);
+                final var partBuffer = slice.asByteBuffer();
+
+                final var partNumber = parts;
+
+                // Send this part for processing via the executor service
+                executorService.execute(() -> {
+                    try {
+                        processor.processPart(partNumber, partBuffer);
+                    } catch (Exception e) {
+                        exceptionCaught.compareAndSet(null, e);
+                        executorService.shutdownNow();
+                        throw new IllegalStateException("Processing part %d of %s (shutting down execution)".formatted(partNumber, file), e);
+                    }
+                });
+
+                offset += length;
             }
+
+            executorService.shutdown();
+            executorService.awaitTermination(10, TimeUnit.MINUTES);
         } catch (Exception e) {
             exceptionCaught.compareAndSet(null, e);
             executorService.shutdownNow();
-            throw new IllegalStateException("Processing slices (part %d) of %s (shutting down execution)".formatted(partStart, file), e);
+            throw new IllegalStateException("Processing slices (part %d) of %s (shutting down execution)".formatted(parts, file), e);
         }
-        return partStart;
+        return parts;
     }
 
     /**
@@ -132,48 +153,9 @@ public class LargeFileSplitter {
         return exceptionCaught.get();
     }
 
-    private int processFileParts(
-            final int partStart,
-            final ExecutorService executorService,
-            final FilePartProcessor processor,
-            final MappedByteBuffer byteBuffer) {
-        final long size = byteBuffer.capacity();
-        final var approxBlocks = (int) ((size + partSize - 1) / partSize);
-        // Align on 16 bytes boundary
-        final var blockSize = (((size + 15) / approxBlocks) & 0xfffffffffffffff0L);
-        // index into current byteBuffer
-        long index = 0;
-        // current part within all parts of this byte buffer...
-        int parts = 0;
-
-        while (index < size && exceptionCaught.get() == null) {
-            parts++;
-
-            final var length = length(size, index, blockSize);
-
-            final var partBuffer = byteBuffer.slice(integer(index, "index"), integer(length, "length"));
-            final var partNumber = parts + partStart;
-
-            // Send this part for processing via the executor service
-            executorService.execute(() -> {
-                try {
-                    processor.processPart(partNumber, partBuffer);
-                } catch (Exception e) {
-                    exceptionCaught.compareAndSet(null, e);
-                    executorService.shutdownNow();
-                    throw new IllegalStateException("Processing part %d of %s (shutting down execution)".formatted(partNumber, file), e);
-                }
-            });
-
-            index += length;
-        }
-
-        return parts;
-    }
-
-    private long length(long size, long index, long blockSize) {
-        final var length = Math.min(blockSize, size - index);
-        final var remaining = size - (index + length);
+    private long length(long size, long offset, long blockSize) {
+        final var length = Math.min(blockSize, size - offset);
+        final var remaining = size - (offset + length);
         // don't want very small last parts
         if (remaining > 0 && remaining <= smallPartMaxSize) {
             return length + remaining;
@@ -187,13 +169,6 @@ public class LargeFileSplitter {
         } catch (IOException e) {
             throw new UncheckedIOException("Unable to get size of file %s".formatted(file), e);
         }
-    }
-
-    private static int integer(long value, String name) {
-        if (value < 0 || value > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Not valid positive integer: %d (%s)".formatted(value, name));
-        }
-        return (int) value;
     }
 
     @FunctionalInterface

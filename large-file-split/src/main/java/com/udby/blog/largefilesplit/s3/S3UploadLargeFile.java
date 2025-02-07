@@ -43,7 +43,7 @@ public class S3UploadLargeFile {
     private final AtomicBoolean changed = new AtomicBoolean(true);
 
     public S3UploadLargeFile() {
-        this((int) LargeFileSplitter.SIZE_32M, 64);
+        this((int) LargeFileSplitter.SIZE_32M, 1024);
     }
 
     public S3UploadLargeFile(int blockSize, int maxParallelism) {
@@ -77,7 +77,6 @@ public class S3UploadLargeFile {
             main.changed.set(true);
             main.progressLog();
         }
-
     }
 
     public void uploadToS3(Path fileToUpload, String s3BucketPath) {
@@ -118,7 +117,6 @@ public class S3UploadLargeFile {
                 .getMimetype(fileToUpload);
 
         System.out.printf("Uploading %s (%.3f MiB %s)%n...to S3 bucket '%s'%n...as '%s'%n", fileToUpload, (1.0 * size / LargeFileSplitter.ONE_M) + 0.0005, mimetype, bucket, destination);
-
 
         final var uploadId = amazonS3Facade.prepareMultipartUpload(bucket, destination, mimetype);
         System.out.printf("Prepared multipart upload: %s%n", uploadId);

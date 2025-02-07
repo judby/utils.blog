@@ -139,7 +139,7 @@ public class LargeFileSplitter {
             }
 
             executorService.shutdown();
-            executorService.awaitTermination(10, TimeUnit.MINUTES);
+            executorService.awaitTermination(10, TimeUnit.HOURS);
         } catch (Exception e) {
             exceptionCaught.compareAndSet(null, e);
             executorService.shutdownNow();

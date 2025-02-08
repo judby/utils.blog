@@ -108,7 +108,7 @@ public class LargeFileSplitter {
     public int process(ExecutorService executorService, FilePartProcessor processor) {
         final var size = fileSize();
 
-        // current part within all parts of this byte buffer...
+        // current part within all parts of this file...
         int parts = 0;
         try (final var channel = FileChannel.open(file, READ); final var arena = Arena.ofShared()) {
             final var memorySegment = channel.map(FileChannel.MapMode.READ_ONLY, 0L, size, arena);

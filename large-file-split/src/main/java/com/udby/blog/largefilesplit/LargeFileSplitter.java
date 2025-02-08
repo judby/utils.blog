@@ -14,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.nio.channels.FileChannel.MapMode.READ_ONLY;
 import static java.nio.file.StandardOpenOption.READ;
 
 /**
@@ -111,7 +112,7 @@ public class LargeFileSplitter {
         // current part within all parts of this file...
         int parts = 0;
         try (final var channel = FileChannel.open(file, READ); final var arena = Arena.ofShared()) {
-            final var memorySegment = channel.map(FileChannel.MapMode.READ_ONLY, 0L, size, arena);
+            final var memorySegment = channel.map(READ_ONLY, 0L, size, arena);
 
             // running offset into off-heap memory segment
             long offset = 0L;
